@@ -1,0 +1,151 @@
+name: "Grading Feedback"
+description: "Posts feedback table to PR"
+runs:
+  using: "composite"
+  steps:
+    - name: Post Comment
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+
+          let body = "";
+          const runNumber = context.runNumber;
+          const now = new Date().toLocaleString('sv-SE', { 
+            timeZone: 'Europe/Stockholm',
+            year: 'numeric', month: '2-digit', day: '2-digit',
+            hour: '2-digit', minute: '2-digit'
+          });
+
+          // Hämta status
+          const isSubmitted = process.env.STUDENT_SUBMITTED === 'true';
+          const studentId = process.env.STUDENT_ID || "Okänd";
+
+          // --- 1. KOLLA OM OBLIGATORISKA DELAR MISSLYCKADES ---
+          let hasFailedRequired = false;
+          if (fs.existsSync('grading-status.json')) {
+             try {
+               const statusData = JSON.parse(fs.readFileSync('grading-status.json', 'utf8'));
+               hasFailedRequired = statusData.failedRequired;
+             } catch(e) {
+               console.log("Kunde inte läsa statusfilen:", e);
+             }
+          }
+
+          // --- 2. BYGG INNEHÅLLET ---
+          if (fs.existsSync('grading-results.json')) {
+            const results = JSON.parse(fs.readFileSync('grading-results.json', 'utf8'));
+            const totalPoints = results.reduce((sum, r) => sum + r.score, 0);
+            const maxPoints = results.reduce((sum, r) => sum + r.points, 0);
+
+            const rows = results.map(r => 
+              `| ${r.passed ? '✅' : '❌'} | ${r.name} | ${r.score} / ${r.points} |`
+            ).join('\n');
+
+            // --- BESTÄM RUBRIK OCH TEXT ---
+            let headerEmoji = "🚧";
+            let headerText = "PRELIMINÄR TESTKÖRNING";
+            let statusMsg = "";
+
+            if (!isSubmitted) {
+                // FALL A: Utkast
+                headerEmoji = "🚧";
+                headerText = "PRELIMINÄR TESTKÖRNING";
+                statusMsg = `**Obs:** Detta är bara en testkörning. När du känner dig helt klar, ändra \`"submitted": false\` till \`true\` i \`student.json\`.`;
+            
+            } else if (isSubmitted && hasFailedRequired) {
+                // FALL B: Inlämnad men SAKNAR DELAR
+                headerEmoji = "❌"; // Rött kryss även i rubriken
+                headerText = "INLÄMNING SAKNAR OBLIGATORISKA DELAR";
+                statusMsg = `**VARNING:** Du har markerat provet som klart, men testerna visar att du missat **obligatoriska moment**. Inlämningen är **inte godkänd** förrän detta är åtgärdat.`;
+            
+            } else {
+                // FALL C: Inlämnad och OK
+                headerEmoji = "🎉";
+                headerText = "INLÄMNING MOTTAGEN";
+                statusMsg = `**Snyggt!** Du har markerat uppgiften som klar och alla obligatoriska tester ser gröna ut. Lärarna kommer nu att rätta din kod.`;
+            }
+
+            body = `
+            ## ${headerEmoji} ${headerText}
+            **Student:** ${studentId}
+            **Status:** ${isSubmitted ? '✅ Klar för rättning' : '✏️ Utkast (Arbete pågår)'}
+            **Resultat:** ${totalPoints} / ${maxPoints} poäng
+            
+            ${statusMsg}
+            
+            | Status | Uppgift | Poäng |
+            | :---: | :--- | :---: |
+            ${rows}
+            
+            *(Kördes: ${now} - Försök #${runNumber})*
+            `;
+
+          } else {
+            console.log("Ingen resultatsfil hittades.");
+            body = `## ⚠️ Automatisk Rättning Misslyckades \nBotten kunde inte läsa resultaten. Kontrollera dina filer.`;
+          }
+
+          // --- 3. POSTA KOMMENTAR ---
+          try {
+            const prs = await github.rest.pulls.list({ 
+              owner: context.repo.owner, 
+              repo: context.repo.repo, 
+              state: 'open' 
+            });
+
+            if (prs.data.length > 0) {
+              const prNumber = prs.data[0].number;
+              
+              const comments = await github.rest.issues.listComments({ 
+                owner: context.repo.owner, 
+                repo: context.repo.repo, 
+                issue_number: prNumber 
+              });
+              
+              // Vi letar efter gamla kommentarer oavsett vilken rubrik de hade
+              const botComment = comments.data.find(c => 
+                c.body.includes('Automatisk Rättning') || 
+                c.body.includes('INLÄMNING') || 
+                c.body.includes('PRELIMINÄR')
+              );
+
+              if (botComment) {
+                await github.rest.issues.updateComment({ 
+                  owner: context.repo.owner, 
+                  repo: context.repo.repo, 
+                  comment_id: botComment.id, 
+                  body: body 
+                });
+                console.log("Uppdaterade kommentar.");
+              } else {
+                await github.rest.issues.createComment({ 
+                  owner: context.repo.owner, 
+                  repo: context.repo.repo, 
+                  issue_number: prNumber, 
+                  body: body 
+                });
+                console.log("Skapade ny kommentar.");
+              }
+            } else {
+              console.log("Ingen öppen PR hittades.");
+            }
+          } catch (e) {
+            console.log("Kunde inte posta kommentar: " + e.message);
+          }
+          // --- 3. SÄTT WORKFLOW STATUS ---
+          if (!isSubmitted) {
+            // UTKAST -> RÖTT KRYSS
+            console.log("🚧 Inlämning är ett utkast.");
+            core.setFailed("Inlämningen är ett utkast. Ändra 'submitted' till true när du är klar.");
+
+          } else if (isSubmitted && hasFailedRequired) {
+            // INLÄMNAD MEN TRASIG -> RÖTT KRYSS
+            console.log("❌ Inlämnad men missade obligatoriska tester.");
+            core.setFailed("Inlämningen saknar obligatoriska moment. Åtgärda felen och pusha igen.");
+
+          } else {
+            // INLÄMNAD OCH HEL -> GRÖN BOCK
+            console.log("✅ Inlämning klar och giltig.");
+            // Exit 0 (Success)
+          }

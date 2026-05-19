@@ -1,0 +1,31 @@
+name: "Setup Student ID"
+description: "Reads and validates student ID and submission status"
+runs:
+  using: "composite"
+  steps:
+    - name: Kontrollera ID och Status
+      shell: bash
+      run: |
+        # 1. Kontrollera filen
+        if [ ! -f student.json ]; then
+          echo "::error::Filen student.json saknas!"
+          exit 1
+        fi
+
+        # 2. Läs och validera ID
+        ID=$(jq -r '.student_id' student.json)
+
+        if [ "$ID" == "null" ] || [ "$ID" == "SKRIV_DITT_ID_HÄR" ] || [ -z "$ID" ]; then
+           echo "::error::Ogiltigt ID i student.json"
+           exit 1
+        fi
+
+        # 3. Läs submission status (Default till false om den saknas)
+        SUBMITTED=$(jq -r '.submitted // false' student.json)
+
+        # 4. Spara till ENV
+        echo "STUDENT_ID=$ID" >> $GITHUB_ENV
+        echo "STUDENT_SUBMITTED=$SUBMITTED" >> $GITHUB_ENV
+
+        echo "✅ Student ID: $ID"
+        echo "📝 Submitted status: $SUBMITTED"

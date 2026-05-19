@@ -1,0 +1,53 @@
+{
+  "tests": [
+    {
+      "name": "1.1 Shebang & Struktur",
+      "run": "sudo bash .github/tests/test.sh 1",
+      "points": 10,
+      "required": false,
+      "timeout": 1
+    },
+    {
+      "name": "1.2 Root-kontroll (Säkerhet)",
+      "run": "sudo bash .github/tests/test.sh 2",
+      "points": 10,
+      "required": false,
+      "timeout": 1
+    },
+    {
+      "name": "2 Skapa Användare",
+      "run": "sudo bash .github/tests/test.sh 3",
+      "points": 20,
+      "required": false,
+      "timeout": 2
+    },
+    {
+      "name": "3.1 Skapa undermappar",
+      "run": "sudo bash .github/tests/test.sh 4",
+      "points": 10,
+      "required": false,
+      "timeout": 1
+    },
+    {
+      "name": "3.2 Rättigheter (Endast ägare)",
+      "run": "sudo bash .github/tests/test.sh 5",
+      "points": 10,
+      "required": false,
+      "timeout": 1
+    },
+    {
+      "name": "4. Välkomstfil & Innehåll",
+      "run": "sudo bash .github/tests/test.sh 6",
+      "points": 20,
+      "required": false,
+      "timeout": 1
+    },
+    {
+      "name": "5. Videoinlämning",
+      "run": "sudo bash .github/tests/test.sh 7",
+      "points": 20,
+      "required": false,
+      "timeout": 1
+    }
+  ]
+}

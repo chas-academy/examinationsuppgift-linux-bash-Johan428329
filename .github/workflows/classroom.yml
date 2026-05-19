@@ -1,0 +1,31 @@
+name: Autograding Tests
+on:
+  push:
+  repository_dispatch:
+
+permissions:
+  checks: write
+  actions: read
+  contents: read
+  pull-requests: write
+
+jobs:
+  run-autograding-tests:
+    runs-on: ubuntu-latest
+    if: github.actor != 'github-classroom[bot]'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      # --- 1. SETUP ---
+      - name: Setup & ID Kontroll
+        uses: ./.github/actions/setup-student
+
+      # --- 2. KÖR TESTER ---
+      - name: Kör Grading
+        uses: ./.github/actions/run-grading
+
+      # --- 3. SKAPA FEEDBACK ---
+      - name: Skapa Feedback
+        if: always()
+        uses: ./.github/actions/grading-feedback

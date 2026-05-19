@@ -1,0 +1,66 @@
+name: "Run Grading"
+description: "Runs tests defined in autograding.json"
+runs:
+  using: "composite"
+  steps:
+    - name: Run Tests & Report
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          const cp = require('child_process');
+
+          // Läs config
+          const config = JSON.parse(fs.readFileSync('.github/classroom/autograding.json', 'utf8'));
+
+          let results = [];
+          let totalPoints = 0;
+          let maxPoints = 0;
+          let failedRequired = false;
+
+          console.log("\n🚀 Startar rättning av tester...\n");
+
+          for (const test of config.tests) {
+            maxPoints += test.points;
+            let passed = false;
+            
+            try {
+              console.log(`🏃 Kör: ${test.name}`);
+              // Kör testet med timeout
+              cp.execSync(test.run, { timeout: (test.timeout || 1) * 60000, stdio: 'pipe' });
+              
+              passed = true;
+              totalPoints += test.points;
+              console.log(`✅ GODKÄND (+${test.points}p)`);
+            } catch (e) {
+              console.log(`❌ EJ GODKÄND`);
+              if (test.required) {
+                 console.log(`   ⚠️ Detta var ett obligatoriskt test!`);
+                 failedRequired = true;
+              }
+            }
+            
+            // Spara data för feedback-steget
+            results.push({
+              name: test.name,
+              points: test.points,
+              score: passed ? test.points : 0,
+              passed: passed
+            });
+          }
+
+          // --- RAPPORTERA TILL GITHUB CLASSROOM ---
+          const text = `Points ${totalPoints}/${maxPoints}`;
+          const summary = JSON.stringify({ totalPoints, maxPoints });
+
+          core.notice(text, { title: "Autograding complete" });
+          core.notice(summary, { title: "Autograding report" });
+
+          console.log(`\n-------------------------`);
+          console.log(text);
+          console.log(`-------------------------\n`);
+
+          // Spara resultaten till fil så nästa action kan läsa dem
+          fs.writeFileSync('grading-results.json', JSON.stringify(results));
+
+          fs.writeFileSync('grading-status.json', JSON.stringify({ failedRequired: failedRequired }));
