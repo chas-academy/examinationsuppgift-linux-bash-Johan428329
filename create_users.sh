@@ -12,51 +12,62 @@ if [[ $# -eq 0 ]]; then
     exit 1
 fi
 
+# spåra om någon användare skapades
+users_created=0
+
 # loopar igenom alla användarnamn som skickades
 for username in "$@"; do
-    # skapar användaren med hemkatalog (-m) om den inte redan finns
+    # skapar användaren med hemkatalog om den inte redan finns
     if ! id "$username" &>/dev/null; then
-        useradd -m "$username"
+        if useradd -m "$username" 2>/dev/null; then
+            ((users_created++))
+        fi
+    else
+        # användaren fanns redan, räkna det som OK
+        ((users_created++))
     fi
-
+    
     # får reda på hemkatalogen
     homedir=$(getent passwd "$username" | cut -d: -f6)
-
+    
     # hoppar över om användaren inte existerar
     if [ -z "$homedir" ]; then
         continue
     fi
-
-    # se till att hemkatalogen existerar och ägs av användaren
-    mkdir -p "$homedir"
-    chown "$username:$username" "$homedir"
-
+    
     # skapar mapparna som krävs
     mkdir -p "$homedir/Documents"
-    mkdir -p "$homedir/Downloads"
+    mkdir -p "$homedir/Downloads" 
     mkdir -p "$homedir/Work"
-
-    # sätt rätt rättigheter på mapparna (endast ägaren kan läsa/skriva)
+    
+    # sätt rätt rättigheter på mapparna
     chmod 700 "$homedir/Documents"
     chmod 700 "$homedir/Downloads"
     chmod 700 "$homedir/Work"
-
+    
     # användaren ska äga sina egna mappar
     chown "$username:$username" "$homedir/Documents"
     chown "$username:$username" "$homedir/Downloads"
     chown "$username:$username" "$homedir/Work"
-
+    
     # hämta alla användare från systemet
     users=$(cut -d: -f1 /etc/passwd | grep -v "^$" | sort)
-
-    # skapar välkomstfilen med personligt meddelande och användarlista
+    
+    # skapar välkomstfilen
     wfile="$homedir/welcome.txt"
     echo "Välkommen $username" > "$wfile"
     echo "" >> "$wfile"
     echo "alla användare i systemet:" >> "$wfile"
     echo "$users" >> "$wfile"
-
+    
     # sätt rätt ägare och rättigheter på welcome filen
     chmod 600 "$wfile"
     chown "$username:$username" "$wfile"
 done
+
+# returnera 0 endast om minst en användare skapades
+if [ $users_created -gt 0 ]; then
+    exit 0
+else
+    exit 1
+fi
