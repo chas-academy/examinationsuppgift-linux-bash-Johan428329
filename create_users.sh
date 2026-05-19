@@ -14,44 +14,48 @@ fi
 
 # loopar igenom alla användarnamn som skickades
 for username in "$@"; do
-    # skapar användaren om den inte redan finns
+    # skapar användaren med hemkatalog (-m) om den inte redan finns
     if ! id "$username" &>/dev/null; then
-        useradd "$username" 2>/dev/null || true
+        useradd -m "$username"
     fi
-    
+
     # får reda på hemkatalogen
     homedir=$(getent passwd "$username" | cut -d: -f6)
-    
+
     # hoppar över om användaren inte existerar
     if [ -z "$homedir" ]; then
         continue
     fi
-    
+
+    # se till att hemkatalogen existerar och ägs av användaren
+    mkdir -p "$homedir"
+    chown "$username:$username" "$homedir"
+
     # skapar mapparna som krävs
     mkdir -p "$homedir/Documents"
-    mkdir -p "$homedir/Downloads" 
+    mkdir -p "$homedir/Downloads"
     mkdir -p "$homedir/Work"
-    
-    # sätt rätt rättigheter på mapparna
+
+    # sätt rätt rättigheter på mapparna (endast ägaren kan läsa/skriva)
     chmod 700 "$homedir/Documents"
     chmod 700 "$homedir/Downloads"
     chmod 700 "$homedir/Work"
-    
+
     # användaren ska äga sina egna mappar
     chown "$username:$username" "$homedir/Documents"
     chown "$username:$username" "$homedir/Downloads"
     chown "$username:$username" "$homedir/Work"
-    
+
     # hämta alla användare från systemet
     users=$(cut -d: -f1 /etc/passwd | grep -v "^$" | sort)
-    
-    # skapar välkomstfilen
+
+    # skapar välkomstfilen med personligt meddelande och användarlista
     wfile="$homedir/welcome.txt"
     echo "Välkommen $username" > "$wfile"
     echo "" >> "$wfile"
     echo "alla användare i systemet:" >> "$wfile"
     echo "$users" >> "$wfile"
-    
+
     # sätt rätt ägare och rättigheter på welcome filen
     chmod 600 "$wfile"
     chown "$username:$username" "$wfile"
