@@ -14,13 +14,18 @@ fi
 
 # loopar igenom alla användarnamn som skickades
 for username in "$@"; do
-    # skapar användaren
+    # skapar användaren om den inte redan finns
     if ! id "$username" &>/dev/null; then
-        useradd "$username" 2>/dev/null
+        useradd "$username" 2>/dev/null || true
     fi
     
     # får reda på hemkatalogen
     homedir=$(getent passwd "$username" | cut -d: -f6)
+    
+    # hoppar över om användaren inte existerar
+    if [ -z "$homedir" ]; then
+        continue
+    fi
     
     # skapar mapparna som krävs
     mkdir -p "$homedir/Documents"
