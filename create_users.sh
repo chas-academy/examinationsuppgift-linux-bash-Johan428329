@@ -1,71 +1,72 @@
 #!/bin/bash
 
-# måste köra som root
+# kontrollera att vi kör som root
 if [[ $EUID -ne 0 ]]; then
     echo "Du måste vara root för att köra det här scriptet"
     exit 1
 fi
 
-# kollar att vi har användare som input
+# kolla att vi har argument
 if [[ $# -eq 0 ]]; then
     echo "Användning: $0 user1 [user2 user3 ...]"
     exit 1
 fi
 
-# spåra om någon användare skapades
+# räkna skapade användare
 users_created=0
 
-# loopar igenom alla användarnamn som skickades
+# loopa genom användarnamnen
 for username in "$@"; do
-    # skapar användaren med hemkatalog om den inte redan finns
+    # skapa användaren om den inte finns
     if ! id "$username" &>/dev/null; then
-        if useradd -m "$username" 2>/dev/null; then
+        useradd -m "$username"
+        if [ $? -eq 0 ]; then
             ((users_created++))
         fi
     else
-        # användaren fanns redan, räkna det som OK
+        # redan befintlig användare
         ((users_created++))
     fi
     
-    # får reda på hemkatalogen
+    # hämta hemkatalog
     homedir=$(getent passwd "$username" | cut -d: -f6)
     
-    # hoppar över om användaren inte existerar
+    # hoppa över om hemkatalog inte finns
     if [ -z "$homedir" ]; then
         continue
     fi
     
-    # skapar mapparna som krävs
+    # skapa mapparna
     mkdir -p "$homedir/Documents"
-    mkdir -p "$homedir/Downloads" 
+    mkdir -p "$homedir/Downloads"
     mkdir -p "$homedir/Work"
     
-    # sätt rätt rättigheter på mapparna
+    # sätt rättigheter (700 = bara ägaren)
     chmod 700 "$homedir/Documents"
     chmod 700 "$homedir/Downloads"
     chmod 700 "$homedir/Work"
     
-    # användaren ska äga sina egna mappar
+    # användar äger sina mappar
     chown "$username:$username" "$homedir/Documents"
     chown "$username:$username" "$homedir/Downloads"
     chown "$username:$username" "$homedir/Work"
     
-    # hämta alla användare från systemet
+    # hämta alla systemanvändare
     users=$(cut -d: -f1 /etc/passwd | grep -v "^$" | sort)
     
-    # skapar välkomstfilen
+    # skapa välkomstfilen
     wfile="$homedir/welcome.txt"
     echo "Välkommen $username" > "$wfile"
     echo "" >> "$wfile"
     echo "alla användare i systemet:" >> "$wfile"
     echo "$users" >> "$wfile"
     
-    # sätt rätt ägare och rättigheter på welcome filen
+    # rättigheter på welcome-filen
     chmod 600 "$wfile"
     chown "$username:$username" "$wfile"
 done
 
-# returnera 0 endast om minst en användare skapades
+# avslut med rätt kod
 if [ $users_created -gt 0 ]; then
     exit 0
 else
