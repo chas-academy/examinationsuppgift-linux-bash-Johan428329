@@ -15,7 +15,9 @@ fi
 # loopar igenom alla användarnamn som skickades
 for username in "$@"; do
     # skapar användaren
-    useradd "$username" 2>/dev/null
+    if ! id "$username" &>/dev/null; then
+        useradd "$username" 2>/dev/null
+    fi
     
     # får reda på hemkatalogen
     homedir=$(getent passwd "$username" | cut -d: -f6)
